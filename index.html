@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASDLC Timeline — Backoffice Support for Joint Accounts</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Helvetica Neue',Helvetica,Arial,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.tl-scroll::-webkit-scrollbar{height:11px}
+.tl-scroll::-webkit-scrollbar-track{background:transparent}
+.tl-scroll::-webkit-scrollbar-thumb{border-radius:6px;background:#c9c7c2}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+// ── Design tokens ────────────────────────────────────────────────────────────
+const LIGHT = {
+  pageBg:'#f1f0ed', card:'#fbfbfa', border:'#e7e5e0', divider:'#edece8',
+  title:'#1c1b19', sub:'#8b8a85', legend:'#9a9994', legendLine:'#b7b5b0',
+  switchTrack:'#d7d5d0', knobLeft:'2.5px', shadow:'0 1px 3px rgba(0,0,0,0.05)',
+  featCard:'#ffffff', featBorder:'#ecebe7', featName:'#262521', featDesc:'#8f8e89',
+  labelName:'#26251f', labelTs:'#9a9994', dotRing:'#fbfbfa',
+  tipBg:'#26251f', tipText:'#f2f1ee', tipSub:'#b9b8b2', tipDivider:'rgba(255,255,255,0.16)',
+};
+const DARK = {
+  pageBg:'#141311', card:'#1f1d1a', border:'#332f2a', divider:'#2b2825',
+  title:'#f3f1ec', sub:'#a29e96', legend:'#8f8b83', legendLine:'#57534c',
+  switchTrack:'oklch(0.62 0.13 250)', knobLeft:'21px', shadow:'0 1px 3px rgba(0,0,0,0.45)',
+  featCard:'#262320', featBorder:'#38342e', featName:'#f0eee9', featDesc:'#9a968d',
+  labelName:'#ece9e3', labelTs:'#8f8b83', dotRing:'#141311',
+  tipBg:'#0f0e0d', tipText:'#f2f1ee', tipSub:'#b9b6ae', tipDivider:'rgba(255,255,255,0.14)',
+};
+const COLORS_L=['oklch(0.60 0.14 250)','oklch(0.58 0.13 195)','oklch(0.58 0.14 150)','oklch(0.66 0.14 65)','oklch(0.58 0.16 25)'];
+const COLORS_D=['oklch(0.72 0.13 250)','oklch(0.72 0.12 195)','oklch(0.74 0.13 150)','oklch(0.78 0.12 70)','oklch(0.70 0.15 25)'];
+const DEF_L='oklch(0.62 0.17 50)';
+const DEF_D='oklch(0.76 0.15 55)';
+
+// ── Project data ─────────────────────────────────────────────────────────────
+const EPIC='Backoffice Support for Joint Accounts · TT-36233';
+const STEPS=[
+  {
+    name:'Capabilities Gen', ts:'2026-07-05 · kickoff',
+    added:[
+      {name:'Account drill-down page',         desc:'New dedicated page off Customer Center for joint-account backoffice management.',     reason:'Core ask: backoffice needs a dedicated view per joint account, not just the tab.',       by:'Google Doc'},
+      {name:'Members section',                  desc:'View active / current members with their account status.',                            reason:'Primary actor task: see who has access to the account right now.',                      by:'Google Doc'},
+      {name:'Pending invitations',              desc:'List open invitations per account; cancel any individual invitation.',               reason:'Backoffice needs ability to cancel invitations sent to wrong numbers.',                  by:'Google Doc'},
+      {name:'Past owner group',                 desc:'Show historical members who left or were removed from the account.',                  reason:'Compliance: full ownership history visible to backoffice.',                             by:'Google Doc'},
+      {name:'Rejected member group',            desc:'Show invitations that were declined by the invitee.',                                 reason:'Visibility into declined invitations for audit purposes.',                              by:'Google Doc'},
+      {name:'Documents section',                desc:'View all documents associated with the joint account.',                               reason:'Backoffice needs access to account-level documents.',                                   by:'Google Doc'},
+      {name:'Registration requests badge',      desc:'Badge on the Registration Requests tab when a phone is linked to a joint account.',  reason:'Help agents notice joint-account context during phone registration.',                  by:'Google Doc'},
+    ],
+    carried:[],removed:[],deferred:[],
+  },
+  {
+    name:'Capability Doc', ts:'2026-07-05 · PR #413',
+    carried:[
+      {name:'Account drill-down page',    desc:'New dedicated page off Customer Center for joint-account backoffice management.'},
+      {name:'Members section',             desc:'View active / current members with their account status.'},
+      {name:'Pending invitations',         desc:'Reuse TT-34765 invite flow; cancel action per invitation. Blocked on TT-34765 (OQ-1).',                                reason:'Depends on in-flight TT-34765 trident / pocketfulserver pieces — not yet released.'},
+      {name:'Past owner group',            desc:'Reserved as an empty group placeholder — no backing mechanism exists yet.',                                              reason:'Scoped down: no mechanism yet; deferred in TT-34765 future_extensions. Honest placeholder, like the risk-score pattern.'},
+      {name:'Rejected member group',       desc:'Reserved as an empty group placeholder — no backing mechanism exists yet.',                                              reason:'Same as Past owner — deferred in TT-34765 future_extensions; no mechanism to surface this yet.'},
+      {name:'Documents section',           desc:'Full reuse of existing AccountDocumentsPage / DocumentsTable — nothing new to build.',                                  reason:'Corrected mid-session: code-grounding pass found the existing feature handles this entirely.'},
+    ],
+    added:[
+      {name:'Dedicated page-level permission', desc:'New permission for the Account drill-down page, separate from the Accounts tab permission.',  reason:'Accounts tab uses an existing Customer Center permission; the drill-down page needs its own gate.',     by:'F4 · user clarification'},
+      {name:'PII reveal on member details',    desc:'Reuse existing PII-reveal component to unmask member data in the Members section.',            reason:'Code-grounding pass confirmed the component is real and reusable; required for member identity display.', by:'Explore agent'},
+    ],
+    removed:[
+      {name:'Registration requests badge', desc:'Indicator on Registration Requests tab for joint-account-linked phones.', reason:'Technical gap: invitation model has no reverse lookup from phone → account. Requires new architecture work. Moved to future_extensions.', by:'F7 · user decision'},
+    ],
+    deferred:[
+      {name:'Account type column',    desc:'Column showing Single or Joint account type, with UX note for formerly-joint accounts.', reason:'Found in the Google Doc after the capability session ended (late doc edit). Not yet folded into capability.md. Candidate for a Mode 6 (--amend) session.'},
+      {name:'Sector column',          desc:'Sector field added to the account page table.',                                           reason:'Late doc edit — appeared mid-session. Marked bold-orange in the annotated diff. Not yet processed.'},
+      {name:'Last activity date',     desc:'Last activity date column on the account page table.',                                    reason:'Late doc edit — not yet processed. Candidate for Mode 6 amend session.'},
+      {name:'Opened at date',         desc:'Account opening date column on the account page table.',                                  reason:'Late doc edit — not yet processed. Candidate for Mode 6 amend session.'},
+    ],
+  },
+  {name:'Story Gen',       ts:'upcoming', added:[],carried:[],removed:[],deferred:[]},
+  {name:'Architecture Doc',ts:'upcoming', added:[],carried:[],removed:[],deferred:[]},
+  {name:'Implementation',  ts:'upcoming', added:[],carried:[],removed:[],deferred:[]},
+];
+
+// ── Layout constants ──────────────────────────────────────────────────────────
+const COL=448,PX=28,CX=202,CARD_W=216;
+const PITCH=84,ABOVE_BASE=58,BELOW_BASE=78,CARD_HALF=33;
+const padL=26,padT=22;
+
+// ── State ─────────────────────────────────────────────────────────────────────
+const state={dark:false};
+
+// ── DOM helpers ───────────────────────────────────────────────────────────────
+function div(styles, ...kids){ return el('div',styles,...kids); }
+function el(tag,styles,...kids){
+  const e=document.createElement(tag);
+  if(styles) Object.assign(e.style,styles);
+  kids.flat(Infinity).forEach(c=>{ if(c==null)return; e.appendChild(typeof c==='string'?document.createTextNode(c):c); });
+  return e;
+}
+function svgEl(tag,attrs,...kids){
+  const e=document.createElementNS('http://www.w3.org/2000/svg',tag);
+  Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));
+  kids.forEach(c=>e.appendChild(c));
+  return e;
+}
+
+// ── Slot assignment (persistent, first-appearance order) ─────────────────────
+const order=[];
+STEPS.forEach(s=>{
+  [...(s.carried||[]),...(s.added||[]),...(s.deferred||[])].forEach(f=>{
+    if(!order.includes(f.name)) order.push(f.name);
+  });
+});
+const slotOf=name=>order.indexOf(name);
+const totalSlots=Math.max(1,order.length);
+const lineY=ABOVE_BASE+totalSlots*PITCH+6;
+const maxBelow=Math.max(0,...STEPS.map(s=>(s.removed?.length||0)));
+const belowH=BELOW_BASE+maxBelow*PITCH+28;
+const H=lineY+belowH;
+const totalW=STEPS.length*COL;
+const aboveY=slot=>lineY-(ABOVE_BASE+slot*PITCH);
+const belowY=k=>lineY+(BELOW_BASE+k*PITCH);
+const curveTo=(px,py,cx,cy)=>`M ${px} ${py} C ${px} ${cy}, ${cx-74} ${cy}, ${cx} ${cy}`;
+
+// ── Build card ────────────────────────────────────────────────────────────────
+function makeCard(f, cy, color, th, dark){
+  const isNew=f.kind==='added', isRemoved=f.kind==='removed', isDeferred=f.kind==='deferred';
+  const tag=isNew?'New':isRemoved?'Removed':isDeferred?'Deferred':null;
+  const tipTitle=isNew?'WHY ADDED':isRemoved?'WHY REMOVED':isDeferred?'NOT YET PROCESSED':'IN SCOPE';
+  const reasonText=f.reason||'Carried over from the previous step; still within project scope.';
+
+  const card=div({
+    position:'absolute', left:CX+'px', top:(cy-CARD_HALF)+'px', width:CARD_W+'px',
+    padding:'9px 13px', background:th.featCard, borderRadius:'9px',
+    border:`1px solid ${th.featBorder}`, borderLeft:`3px solid ${color}`,
+    boxShadow:dark?'0 1px 2px rgba(0,0,0,0.3)':'0 1px 2px rgba(0,0,0,0.04)',
+    cursor:'default', transition:'box-shadow .15s ease', zIndex:'2', userSelect:'none',
+  });
+
+  const header=div({display:'flex',alignItems:'baseline',gap:'7px'});
+  if(tag){
+    const badge=el('span',{fontSize:'8.5px',fontWeight:'800',letterSpacing:'0.6px',color,textTransform:'uppercase',flex:'0 0 auto'},tag);
+    header.appendChild(badge);
+  }
+  header.appendChild(el('div',{fontSize:'13.5px',fontWeight:'600',color:th.featName,lineHeight:'1.2'},f.name));
+  card.appendChild(header);
+
+  const desc=el('div',{fontSize:'11.5px',lineHeight:'1.36',color:th.featDesc,marginTop:'4px',
+    display:'-webkit-box',WebkitLineClamp:'2',WebkitBoxOrient:'vertical',overflow:'hidden'},f.desc);
+  card.appendChild(desc);
+
+  // Tooltip (hidden by default, shown on hover)
+  const tip=div({
+    position:'absolute', left:(CARD_W+13)+'px', top:'-8px', width:'232px',
+    background:th.tipBg, color:th.tipText, padding:'11px 13px', borderRadius:'9px',
+    border:`1px solid ${color}`, fontSize:'11.5px', lineHeight:'1.45',
+    boxShadow:dark?`0 0 0 1px ${color}55, 0 12px 30px rgba(0,0,0,0.7)`:'0 10px 28px rgba(0,0,0,0.3)',
+    zIndex:'60', display:'none', pointerEvents:'none',
+  });
+  tip.appendChild(el('div',{color,fontWeight:'800',fontSize:'9.5px',letterSpacing:'0.7px',textTransform:'uppercase',marginBottom:'5px'},tipTitle));
+  tip.appendChild(el('div',{},reasonText));
+  if(f.by){
+    tip.appendChild(el('div',{marginTop:'8px',paddingTop:'7px',borderTop:`1px solid ${th.tipDivider}`,color:th.tipSub,fontSize:'10.5px'},'— '+f.by));
+  }
+  card.appendChild(tip);
+
+  card.addEventListener('mouseenter',()=>{
+    tip.style.display='block';
+    card.style.boxShadow=dark?'0 6px 20px rgba(0,0,0,0.5)':'0 6px 18px rgba(0,0,0,0.11)';
+    card.style.zIndex='40';
+  });
+  card.addEventListener('mouseleave',()=>{
+    tip.style.display='none';
+    card.style.boxShadow=dark?'0 1px 2px rgba(0,0,0,0.3)':'0 1px 2px rgba(0,0,0,0.04)';
+    card.style.zIndex='2';
+  });
+
+  return card;
+}
+
+// ── Build timeline body ───────────────────────────────────────────────────────
+function buildBody(th, COLORS, defColor, dark){
+  // Overlay SVG for cross-step hand-off curves
+  const overlaySvg=svgEl('svg',{width:totalW,height:H,style:`position:absolute;left:${padL}px;top:${padT}px;pointer-events:none;overflow:visible`});
+  STEPS.forEach((s,si)=>{
+    const color=COLORS[si%COLORS.length];
+    (s.removed||[]).forEach((r,k)=>{
+      const slot=slotOf(r.name);
+      if(si>0&&slot>=0){
+        const x1=(si-1)*COL+CX+CARD_W, y1=aboveY(slot);
+        const x2=si*COL+CX+6,          y2=belowY(k);
+        overlaySvg.appendChild(svgEl('path',{
+          d:`M ${x1} ${y1} C ${x1+74} ${y1}, ${x2-84} ${y2}, ${x2} ${y2}`,
+          fill:'none',stroke:color,'stroke-width':'1.6','stroke-dasharray':'5 5',opacity:'0.7','stroke-linecap':'round',
+        }));
+      }
+    });
+  });
+
+  const colsWrap=div({display:'flex',width:'max-content'});
+
+  STEPS.forEach((s,si)=>{
+    const color=COLORS[si%COLORS.length];
+    const inScope=[
+      ...(s.carried||[]).map(f=>({...f,kind:'carried'})),
+      ...(s.added||[]).map(f=>({...f,kind:'added'})),
+      ...(s.deferred||[]).map(f=>({...f,kind:'deferred'})),
+    ];
+    const below=(s.removed||[]).map(f=>({...f,kind:'removed'}));
+
+    const colSvg=svgEl('svg',{width:COL,height:H,style:'position:absolute;left:0;top:0;overflow:visible'});
+    colSvg.appendChild(svgEl('line',{x1:0,y1:lineY,x2:COL,y2:lineY,stroke:color,'stroke-width':'3'}));
+    inScope.forEach(f=>{
+      const c=f.kind==='deferred'?defColor:color;
+      const dash=f.kind==='added'||f.kind==='deferred';
+      colSvg.appendChild(svgEl('path',{
+        d:curveTo(PX,lineY,CX,aboveY(slotOf(f.name))),
+        fill:'none',stroke:c,'stroke-width':'1.7',
+        'stroke-dasharray':dash?'5 5':'0',opacity:'0.9','stroke-linecap':'round',
+      }));
+    });
+    colSvg.appendChild(svgEl('circle',{cx:PX,cy:lineY,r:'7.5',fill:color,stroke:th.dotRing,'stroke-width':'3'}));
+
+    const label=div({position:'absolute',left:(PX-6)+'px',top:(lineY+16)+'px',width:'172px'});
+    label.appendChild(el('div',{fontSize:'15.5px',fontWeight:'600',color:th.labelName,letterSpacing:'-0.2px'},s.name));
+    label.appendChild(el('div',{fontSize:'12px',color:th.labelTs,marginTop:'4px',fontVariantNumeric:'tabular-nums'},s.ts));
+
+    const col=div({position:'relative',width:COL+'px',height:H+'px',flex:'0 0 auto'});
+    col.appendChild(colSvg);
+    col.appendChild(label);
+    inScope.forEach(f=>{
+      const c=f.kind==='deferred'?defColor:color;
+      col.appendChild(makeCard(f,aboveY(slotOf(f.name)),c,th,dark));
+    });
+    below.forEach((f,k)=>col.appendChild(makeCard(f,belowY(k),color,th,dark)));
+    colsWrap.appendChild(col);
+  });
+
+  const body=div({position:'relative',width:'max-content',padding:`${padT}px ${padL}px 30px`});
+  body.appendChild(overlaySvg);
+  body.appendChild(colsWrap);
+  return body;
+}
+
+// ── Build legend swatch ───────────────────────────────────────────────────────
+function swatchLine(stroke,dashed){
+  const s=svgEl('svg',{width:'28',height:'4'});
+  const attrs={x1:'0',y1:'2',x2:'28',y2:'2',stroke,'stroke-width':'2.5'};
+  if(dashed) attrs['stroke-dasharray']='4 4';
+  s.appendChild(svgEl('line',attrs));
+  return s;
+}
+
+// ── Full render ───────────────────────────────────────────────────────────────
+function render(){
+  const dark=state.dark;
+  const th=dark?DARK:LIGHT;
+  const COLORS=dark?COLORS_D:COLORS_L;
+  const defColor=dark?DEF_D:DEF_L;
+
+  const root=document.getElementById('root');
+  root.innerHTML='';
+
+  // Page wrapper
+  const page=div({minHeight:'100vh',padding:'28px',boxSizing:'border-box',background:th.pageBg,transition:'background .25s ease'});
+
+  // Card shell
+  const shell=div({maxWidth:'1220px',margin:'0 auto',borderRadius:'16px',overflow:'hidden',
+    background:th.card,border:`1px solid ${th.border}`,boxShadow:th.shadow,
+    transition:'background .25s ease,border-color .25s ease'});
+
+  // ── Header ────────────────────────────────────────────────────────────────
+  const hdr=div({padding:'30px 38px 22px',borderBottom:`1px solid ${th.divider}`,
+    display:'flex',justifyContent:'space-between',alignItems:'flex-end',gap:'24px',flexWrap:'wrap'});
+
+  const hdrLeft=div({});
+  hdrLeft.appendChild(el('h1',{margin:'0',fontWeight:'300',fontSize:'42px',letterSpacing:'-0.6px',lineHeight:'1',color:th.title},'ASDLC Project time line'));
+  hdrLeft.appendChild(el('p',{margin:'11px 0 0',fontSize:'15px',fontWeight:'400',color:th.sub},EPIC));
+
+  const hdrRight=div({display:'flex',flexDirection:'column',alignItems:'flex-end',gap:'15px',paddingBottom:'4px'});
+
+  // Dark mode toggle
+  const btn=el('button',{display:'flex',alignItems:'center',gap:'9px',background:'transparent',
+    border:'none',cursor:'pointer',padding:'0',fontFamily:'inherit'});
+  btn.setAttribute('aria-label','Toggle dark mode');
+  btn.appendChild(el('span',{fontSize:'12px',letterSpacing:'0.2px',color:th.legend},'Dark mode'));
+  const track=el('span',{width:'42px',height:'23px',borderRadius:'12px',position:'relative',
+    display:'inline-block',transition:'background .2s ease',background:th.switchTrack});
+  track.appendChild(el('span',{position:'absolute',top:'2.5px',width:'18px',height:'18px',
+    borderRadius:'50%',background:'#fff',boxShadow:'0 1px 3px rgba(0,0,0,0.35)',
+    transition:'left .2s ease',left:th.knobLeft}));
+  btn.appendChild(track);
+  btn.addEventListener('click',()=>{ state.dark=!state.dark; render(); });
+  hdrRight.appendChild(btn);
+
+  // Legend
+  const legend=div({display:'flex',gap:'22px',fontSize:'12px',whiteSpace:'nowrap',color:th.legend});
+  [[th.legendLine,false,'In scope'],[th.legendLine,true,'Changed this step'],[defColor,true,'Not yet processed']].forEach(([stroke,dashed,label])=>{
+    const item=div({display:'flex',alignItems:'center',gap:'8px'});
+    item.appendChild(swatchLine(stroke,dashed));
+    item.appendChild(document.createTextNode(label));
+    legend.appendChild(item);
+  });
+  hdrRight.appendChild(legend);
+
+  hdr.appendChild(hdrLeft);
+  hdr.appendChild(hdrRight);
+
+  // ── Scrollable body ───────────────────────────────────────────────────────
+  const scroll=div({overflowX:'auto',overflowY:'hidden'});
+  scroll.className='tl-scroll';
+  scroll.appendChild(buildBody(th,COLORS,defColor,dark));
+
+  shell.appendChild(hdr);
+  shell.appendChild(scroll);
+  page.appendChild(shell);
+  root.appendChild(page);
+}
+
+render();
+</script>
+</body>
+</html>
