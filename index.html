@@ -212,10 +212,24 @@ function makeCard(f, cy, color, th, dark){
 
 // ── Build timeline body ───────────────────────────────────────────────────────
 function buildBody(th, COLORS, defColor, dark){
-  // Overlay SVG for cross-step hand-off curves
+  // Overlay SVG: carried card-to-card connectors + removed hand-off curves
   const overlaySvg=svgEl('svg',{width:totalW,height:H,style:`position:absolute;left:${padL}px;top:${padT}px;pointer-events:none;overflow:visible`});
   STEPS.forEach((s,si)=>{
     const color=COLORS[si%COLORS.length];
+    // Carried: straight horizontal connector from prev card right edge → curr card left edge
+    if(si>0){
+      (s.carried||[]).forEach(f=>{
+        const slot=slotOf(f.name);
+        if(slot<0) return;
+        const x1=(si-1)*COL+CX+CARD_W, y1=aboveY(slot);
+        const x2=si*COL+CX,             y2=aboveY(slot);
+        overlaySvg.appendChild(svgEl('path',{
+          d:`M ${x1} ${y1} C ${x1+74} ${y1}, ${x2-74} ${y2}, ${x2} ${y2}`,
+          fill:'none',stroke:color,'stroke-width':'1.7',opacity:'0.9','stroke-linecap':'round',
+        }));
+      });
+    }
+    // Removed: dashed hand-off curve from prev card right edge → removed card below line
     (s.removed||[]).forEach((r,k)=>{
       const slot=slotOf(r.name);
       if(si>0&&slot>=0){
@@ -243,12 +257,12 @@ function buildBody(th, COLORS, defColor, dark){
     const colSvg=svgEl('svg',{width:COL,height:H,style:'position:absolute;left:0;top:0;overflow:visible'});
     colSvg.appendChild(svgEl('line',{x1:0,y1:lineY,x2:COL,y2:lineY,stroke:color,'stroke-width':'3'}));
     inScope.forEach(f=>{
+      if(f.kind==='carried') return; // drawn as card-to-card on overlay instead
       const c=f.kind==='deferred'?defColor:color;
-      const dash=f.kind==='added'||f.kind==='deferred';
       colSvg.appendChild(svgEl('path',{
         d:curveTo(PX,lineY,CX,aboveY(slotOf(f.name))),
         fill:'none',stroke:c,'stroke-width':'1.7',
-        'stroke-dasharray':dash?'5 5':'0',opacity:'0.9','stroke-linecap':'round',
+        'stroke-dasharray':'5 5',opacity:'0.9','stroke-linecap':'round',
       }));
     });
     colSvg.appendChild(svgEl('circle',{cx:PX,cy:lineY,r:'7.5',fill:color,stroke:th.dotRing,'stroke-width':'3'}));
