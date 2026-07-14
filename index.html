@@ -113,9 +113,9 @@ const STEPS=[
   {name:'Implementation',  ts:'upcoming', added:[],carried:[],removed:[],deferred:[]},
 ];
 
-// ── Layout constants ──────────────────────────────────────────────────────────
-const COL=448,PX=28,CX=202,CARD_W=216;
-const PITCH=84,ABOVE_BASE=58,BELOW_BASE=78,CARD_HALF=33;
+// ── Layout constants (COL/CX/CARD_W are recomputed on each render) ────────────
+let COL=448,CX=202,CARD_W=216;
+const PX=28,PITCH=84,ABOVE_BASE=58,BELOW_BASE=78,CARD_HALF=33;
 const padL=26,padT=22;
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -299,6 +299,12 @@ function swatchLine(stroke,dashed){
 
 // ── Full render ───────────────────────────────────────────────────────────────
 function render(){
+  // Fit all columns into the available screen width (min 280px per column)
+  const available=Math.max(window.innerWidth-2*28,STEPS.length*280);
+  COL=Math.floor(available/STEPS.length);
+  CX=Math.round(COL*(202/448));
+  CARD_W=Math.round(COL*(216/448));
+
   const dark=state.dark;
   const th=dark?DARK:LIGHT;
   const COLORS=dark?COLORS_D:COLORS_L;
@@ -311,7 +317,7 @@ function render(){
   const page=div({minHeight:'100vh',padding:'28px',boxSizing:'border-box',background:th.pageBg,transition:'background .25s ease'});
 
   // Card shell
-  const shell=div({maxWidth:'1220px',margin:'0 auto',borderRadius:'16px',overflow:'hidden',
+  const shell=div({borderRadius:'16px',overflow:'hidden',
     background:th.card,border:`1px solid ${th.border}`,boxShadow:th.shadow,
     transition:'background .25s ease,border-color .25s ease'});
 
@@ -363,6 +369,7 @@ function render(){
   root.appendChild(page);
 }
 
+window.addEventListener('resize', render);
 render();
 </script>
 </body>
