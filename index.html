@@ -149,7 +149,7 @@ const lineY=ABOVE_BASE+totalSlots*PITCH+6;
 const maxBelow=Math.max(0,...STEPS.map(s=>(s.removed?.length||0)));
 const belowH=BELOW_BASE+maxBelow*PITCH+28;
 const H=lineY+belowH;
-const totalW=STEPS.length*COL;
+// totalW depends on COL which is recomputed per render — declared inside buildBody
 const aboveY=slot=>lineY-(ABOVE_BASE+slot*PITCH);
 const belowY=k=>lineY+(BELOW_BASE+k*PITCH);
 const curveTo=(px,py,cx,cy)=>`M ${px} ${py} C ${px} ${cy}, ${cx-74} ${cy}, ${cx} ${cy}`;
@@ -213,6 +213,7 @@ function makeCard(f, cy, color, th, dark){
 // ── Build timeline body ───────────────────────────────────────────────────────
 function buildBody(th, COLORS, defColor, dark){
   // Overlay SVG: carried card-to-card connectors + removed hand-off curves
+  const totalW=STEPS.length*COL;
   const overlaySvg=svgEl('svg',{width:totalW,height:H,style:`position:absolute;left:${padL}px;top:${padT}px;pointer-events:none;overflow:visible`});
   STEPS.forEach((s,si)=>{
     const color=COLORS[si%COLORS.length];
