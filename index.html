@@ -113,9 +113,9 @@ const STEPS=[
   {name:'Implementation',  ts:'upcoming', added:[],carried:[],removed:[],deferred:[]},
 ];
 
-// ── Layout constants (COL/CX/CARD_W are recomputed on each render) ────────────
-let COL=448,CX=202,CARD_W=216;
-const PX=28,PITCH=84,ABOVE_BASE=58,BELOW_BASE=78,CARD_HALF=33;
+// ── Layout constants (COL/CX/CARD_W/PITCH/CARD_HALF recomputed each render) ───
+let COL=448,CX=202,CARD_W=216,PITCH=108,CARD_HALF=43;
+const PX=28,ABOVE_BASE=58,BELOW_BASE=78;
 const padL=26,padT=22;
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -146,13 +146,8 @@ STEPS.forEach(s=>{
 });
 const slotOf=name=>order.indexOf(name);
 const totalSlots=Math.max(1,order.length);
-const lineY=ABOVE_BASE+totalSlots*PITCH+6;
 const maxBelow=Math.max(0,...STEPS.map(s=>(s.removed?.length||0)));
-const belowH=BELOW_BASE+maxBelow*PITCH+28;
-const H=lineY+belowH;
-// totalW depends on COL which is recomputed per render — declared inside buildBody
-const aboveY=slot=>lineY-(ABOVE_BASE+slot*PITCH);
-const belowY=k=>lineY+(BELOW_BASE+k*PITCH);
+// lineY/belowH/H/aboveY/belowY depend on PITCH — computed inside buildBody each render
 const curveTo=(px,py,cx,cy)=>`M ${px} ${py} C ${px} ${cy}, ${cx-74} ${cy}, ${cx} ${cy}`;
 
 // ── Build card ────────────────────────────────────────────────────────────────
@@ -176,7 +171,8 @@ function makeCard(f, cy, color, th, dark){
     const badge=el('span',{fontSize:'8.5px',fontWeight:'800',letterSpacing:'0.6px',color,textTransform:'uppercase',flex:'0 0 auto'},tag);
     header.appendChild(badge);
   }
-  header.appendChild(el('div',{fontSize:'13.5px',fontWeight:'600',color:th.featName,lineHeight:'1.2'},f.name));
+  header.appendChild(el('div',{fontSize:'13.5px',fontWeight:'600',color:th.featName,lineHeight:'1.3',
+    display:'-webkit-box',WebkitLineClamp:'2',WebkitBoxOrient:'vertical',overflow:'hidden'},f.name));
   card.appendChild(header);
 
   const desc=el('div',{fontSize:'11.5px',lineHeight:'1.36',color:th.featDesc,marginTop:'4px',
@@ -226,8 +222,15 @@ function makeCard(f, cy, color, th, dark){
 
 // ── Build timeline body ───────────────────────────────────────────────────────
 function buildBody(th, COLORS, defColor, dark){
-  // Overlay SVG: carried card-to-card connectors + removed hand-off curves
+  // Geometry — recomputed here because PITCH/CARD_W change per render
+  const lineY=ABOVE_BASE+totalSlots*PITCH+6;
+  const belowH=BELOW_BASE+maxBelow*PITCH+28;
+  const H=lineY+belowH;
   const totalW=STEPS.length*COL;
+  const aboveY=slot=>lineY-(ABOVE_BASE+slot*PITCH);
+  const belowY=k=>lineY+(BELOW_BASE+k*PITCH);
+
+  // Overlay SVG: carried card-to-card connectors + removed hand-off curves
   const overlaySvg=svgEl('svg',{width:totalW,height:H,style:`position:absolute;left:${padL}px;top:${padT}px;pointer-events:none;overflow:visible`});
   STEPS.forEach((s,si)=>{
     const color=COLORS[si%COLORS.length];
@@ -319,6 +322,8 @@ function render(){
   COL=Math.floor(available/STEPS.length);
   CX=Math.round(COL*(202/448));
   CARD_W=Math.round(COL*(216/448));
+  PITCH=Math.round(Math.max(108,CARD_W*0.54));
+  CARD_HALF=Math.round(PITCH*0.40);
 
   // Tear down previous dim overlay if re-rendering (dark toggle, resize)
   if(dimOverlayEl){ dimOverlayEl.remove(); dimOverlayEl=null; }
