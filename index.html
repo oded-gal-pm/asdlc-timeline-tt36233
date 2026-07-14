@@ -120,6 +120,7 @@ const padL=26,padT=22;
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const state={dark:false};
+let dimOverlayEl=null;
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
 function div(styles, ...kids){ return el('div',styles,...kids); }
@@ -166,8 +167,9 @@ function makeCard(f, cy, color, th, dark){
     padding:'9px 13px', background:th.featCard, borderRadius:'9px',
     border:`1px solid ${th.featBorder}`, borderLeft:`3px solid ${color}`,
     boxShadow:dark?'0 1px 2px rgba(0,0,0,0.3)':'0 1px 2px rgba(0,0,0,0.04)',
-    cursor:'default', transition:'box-shadow .15s ease', zIndex:'2', userSelect:'none',
+    cursor:'default', transition:'box-shadow .15s ease, transform .15s ease', zIndex:'2', userSelect:'none',
   });
+  card.dataset.feature=f.name;
 
   const header=div({display:'flex',alignItems:'baseline',gap:'7px'});
   if(tag){
@@ -200,11 +202,23 @@ function makeCard(f, cy, color, th, dark){
     tip.style.display='block';
     card.style.boxShadow=dark?'0 6px 20px rgba(0,0,0,0.5)':'0 6px 18px rgba(0,0,0,0.11)';
     card.style.zIndex='40';
+    // Show dim overlay
+    if(dimOverlayEl) dimOverlayEl.style.opacity='1';
+    // Elevate all same-feature cards from previous steps above the overlay
+    Array.from(document.querySelectorAll('[data-feature]'))
+      .filter(c=>c!==card && c.dataset.feature===f.name)
+      .forEach(c=>{ c.style.zIndex='20'; c.style.boxShadow=dark?'0 4px 14px rgba(0,0,0,0.5)':'0 4px 14px rgba(0,0,0,0.10)'; });
   });
   card.addEventListener('mouseleave',()=>{
     tip.style.display='none';
     card.style.boxShadow=dark?'0 1px 2px rgba(0,0,0,0.3)':'0 1px 2px rgba(0,0,0,0.04)';
     card.style.zIndex='2';
+    // Hide dim overlay
+    if(dimOverlayEl) dimOverlayEl.style.opacity='0';
+    // Restore same-feature cards
+    Array.from(document.querySelectorAll('[data-feature]'))
+      .filter(c=>c!==card && c.dataset.feature===f.name)
+      .forEach(c=>{ c.style.zIndex='2'; c.style.boxShadow=dark?'0 1px 2px rgba(0,0,0,0.3)':'0 1px 2px rgba(0,0,0,0.04)'; });
   });
 
   return card;
@@ -306,10 +320,21 @@ function render(){
   CX=Math.round(COL*(202/448));
   CARD_W=Math.round(COL*(216/448));
 
+  // Tear down previous dim overlay if re-rendering (dark toggle, resize)
+  if(dimOverlayEl){ dimOverlayEl.remove(); dimOverlayEl=null; }
+
   const dark=state.dark;
   const th=dark?DARK:LIGHT;
   const COLORS=dark?COLORS_D:COLORS_L;
   const defColor=dark?DEF_D:DEF_L;
+
+  // Create dim overlay on document.body so it escapes the scroll container
+  dimOverlayEl=div({
+    position:'fixed',top:'0',left:'0',right:'0',bottom:'0',
+    background:dark?'rgba(0,0,0,0.55)':'rgba(0,0,0,0.22)',
+    zIndex:'8',opacity:'0',transition:'opacity .2s ease',pointerEvents:'none',
+  });
+  document.body.appendChild(dimOverlayEl);
 
   const root=document.getElementById('root');
   root.innerHTML='';
@@ -324,7 +349,8 @@ function render(){
 
   // ── Header ────────────────────────────────────────────────────────────────
   const hdr=div({padding:'30px 38px 22px',borderBottom:`1px solid ${th.divider}`,
-    display:'flex',justifyContent:'space-between',alignItems:'flex-end',gap:'24px',flexWrap:'wrap'});
+    display:'flex',justifyContent:'space-between',alignItems:'flex-end',gap:'24px',flexWrap:'wrap',
+    position:'relative',zIndex:'100'});
 
   const hdrLeft=div({});
   hdrLeft.appendChild(el('h1',{margin:'0',fontWeight:'300',fontSize:'42px',letterSpacing:'-0.6px',lineHeight:'1',color:th.title},'ASDLC Project time line'));
